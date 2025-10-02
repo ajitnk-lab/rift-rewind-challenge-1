@@ -1,6 +1,6 @@
 // Riot Games API Configuration
 const API_CONFIG = {
-    key: 'RGAPI-3135fd4b-9af6-4efa-9a8b-0ec4729c36cd', // Will be moved to AWS Secrets Manager
+    key: 'DEMO_KEY', // Placeholder - Replace with valid API key from developer.riotgames.com
     baseUrl: 'https://{region}.api.riotgames.com',
     endpoints: {
         summoner: '/lol/summoner/v4/summoners/by-name/{summonerName}',
@@ -56,6 +56,8 @@ async function handleSearch() {
     const summonerName = elements.summonerInput.value.trim();
     const region = elements.regionSelect.value;
     
+    console.log('🔍 Starting search for:', summonerName, 'in region:', region);
+    
     if (!summonerName) {
         showNotification('Please enter a summoner name', 'error');
         return;
@@ -69,17 +71,39 @@ async function handleSearch() {
     showLoading(true);
     
     try {
+        console.log('📡 Fetching summoner data...');
         const summonerData = await fetchSummonerData(summonerName, region);
+        console.log('✅ Summoner data received:', summonerData);
+        
+        console.log('📡 Fetching league data...');
         const leagueData = await fetchLeagueData(summonerData.id, region);
+        console.log('✅ League data received:', leagueData);
+        
+        console.log('📡 Fetching mastery data...');
         const masteryData = await fetchMasteryData(summonerData.id, region);
+        console.log('✅ Mastery data received:', masteryData);
         
         displaySummonerResults(summonerData, leagueData, masteryData, region);
         addToLeaderboard(summonerData, leagueData, region);
         
         showNotification('Summoner data loaded successfully!', 'success');
     } catch (error) {
-        console.error('Search error:', error);
-        showNotification(error.message || 'Failed to fetch summoner data', 'error');
+        console.error('🚨 Search error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+            summonerName: summonerName,
+            region: region,
+            timestamp: new Date().toISOString()
+        });
+        
+        // Show detailed error to user for debugging
+        const errorMessage = `Search failed: ${error.message}`;
+        showNotification(errorMessage, 'error');
+        
+        // Also log to console for developer debugging
+        console.log('🔧 Debug info - API Key first 10 chars:', API_CONFIG.key.substring(0, 10));
+        console.log('🔧 Debug info - Full URL would be:', buildApiUrl('summoner', region, { summonerName: encodeURIComponent(summonerName) }));
     } finally {
         showLoading(false);
     }
@@ -157,21 +181,68 @@ async function makeApiRequest(url) {
     
     lastRequestTime = Date.now();
     
-    const response = await fetch(`${url}?api_key=${API_CONFIG.key}`);
+    const fullUrl = `${url}?api_key=${API_CONFIG.key}`;
+    console.log('🌐 Making API request to:', url);
+    console.log('🔑 Using API key:', API_CONFIG.key.substring(0, 10) + '...');
     
-    if (!response.ok) {
-        if (response.status === 404) {
-            throw new Error('Summoner not found');
-        } else if (response.status === 429) {
-            throw new Error('Rate limit exceeded. Please try again later.');
-        } else if (response.status === 403) {
-            throw new Error('Invalid API key or access denied');
-        } else {
-            throw new Error(`API request failed: ${response.status}`);
+    try {
+        const response = await fetch(fullUrl);
+        
+        console.log('📡 Response status:', response.status);
+        console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+        
+        if (!response.ok) {
+            // Try to get the error response body
+            let errorBody = '';
+            try {
+                const errorText = await response.text();
+                errorBody = errorText;
+                console.log('❌ Error response body:', errorText);
+                
+                // Try to parse as JSON for structured error
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    console.log('❌ Parsed error JSON:', errorJson);
+                } catch (e) {
+                    console.log('❌ Error response is not JSON');
+                }
+            } catch (e) {
+                console.log('❌ Could not read error response body:', e);
+            }
+            
+            // Handle specific error codes with detailed messages
+            if (response.status === 401) {
+                throw new Error(`API Authentication Failed (401): ${errorBody || 'Invalid or expired API key'}`);
+            } else if (response.status === 403) {
+                throw new Error(`API Access Forbidden (403): ${errorBody || 'API key lacks required permissions'}`);
+            } else if (response.status === 404) {
+                throw new Error(`Summoner not found (404): ${errorBody || 'The requested summoner does not exist'}`);
+            } else if (response.status === 429) {
+                throw new Error(`Rate limit exceeded (429): ${errorBody || 'Too many requests, please wait'}`);
+            } else if (response.status === 500) {
+                throw new Error(`Riot API Server Error (500): ${errorBody || 'Internal server error'}`);
+            } else if (response.status === 503) {
+                throw new Error(`Riot API Unavailable (503): ${errorBody || 'Service temporarily unavailable'}`);
+            } else {
+                throw new Error(`API request failed (${response.status}): ${errorBody || 'Unknown error'}`);
+            }
         }
+        
+        const data = await response.json();
+        console.log('✅ API response successful:', data);
+        return data;
+        
+    } catch (error) {
+        console.error('🚨 API request error:', error);
+        
+        // Network or other fetch errors
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            throw new Error(`Network error: Unable to connect to Riot Games API. Please check your internet connection.`);
+        }
+        
+        // Re-throw our custom errors
+        throw error;
     }
-    
-    return await response.json();
 }
 
 function displaySummonerResults(summoner, leagues, masteries, region) {
