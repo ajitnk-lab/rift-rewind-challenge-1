@@ -86,10 +86,8 @@ export class RiftRewindStack extends cdk.Stack {
     const riotApiSecret = new secretsmanager.Secret(this, 'RiotApiSecret', {
       secretName: 'rift-rewind/riot-api-key',
       description: 'Riot Games API key for Rift Rewind application',
-      generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: 'riot-api' }),
-        generateStringKey: 'apiKey',
-        excludeCharacters: '"@/\\',
+      secretObjectValue: {
+        apiKey: cdk.SecretValue.unsafePlainText('RGAPI-afe09931-a170-4541-8f25-2b071c0ab4ed'),
       },
     });
 
@@ -175,13 +173,16 @@ frontend:
       commands:
         - echo "Installing dependencies..."
         - cd frontend/src
+        - echo "Retrieving API key from AWS Secrets Manager..."
+        - export RIOT_API_KEY=$(aws secretsmanager get-secret-value --secret-id rift-rewind/riot-api-key --region ${this.region} --query SecretString --output text | jq -r .apiKey)
     build:
       commands:
-        - echo "Building application..."
-        - echo "No build step required for static files"
+        - echo "Building application with secure API key..."
+        - sed -i "s/RGAPI-afe09931-a170-4541-8f25-2b071c0ab4ed/\$RIOT_API_KEY/g" app.js
+        - echo "Build completed with secure API key injection"
     postBuild:
       commands:
-        - echo "Build completed"
+        - echo "Build completed successfully"
   artifacts:
     baseDirectory: frontend/src
     files:

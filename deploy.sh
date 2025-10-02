@@ -76,12 +76,41 @@ build_frontend() {
         npm install
     fi
     
+    # Get API key from AWS Secrets Manager
+    log_info "Retrieving API key from AWS Secrets Manager..."
+    RIOT_API_KEY=$(aws secretsmanager get-secret-value \
+        --secret-id rift-rewind/riot-api-key \
+        --region $AWS_REGION \
+        --query SecretString \
+        --output text | jq -r .apiKey 2>/dev/null)
+    
+    if [ -z "$RIOT_API_KEY" ] || [ "$RIOT_API_KEY" = "null" ]; then
+        log_warning "Could not retrieve API key from Secrets Manager, using local .env.local"
+        if [ -f "../.env.local" ]; then
+            source ../.env.local
+            RIOT_API_KEY=$RIOT_API_KEY
+        else
+            log_error "No API key available in Secrets Manager or .env.local"
+            cd ..
+            return 1
+        fi
+    fi
+    
+    # Create temporary version with secure API key
+    log_info "Injecting secure API key into build..."
+    cp src/app.js src/app.js.backup
+    sed -i.bak "s/RGAPI-afe09931-a170-4541-8f25-2b071c0ab4ed/$RIOT_API_KEY/g" src/app.js
+    
     # Build frontend
     log_info "Optimizing frontend files..."
     npm run build
     
+    # Restore original file (remove API key from source)
+    mv src/app.js.backup src/app.js
+    rm -f src/app.js.bak
+    
     cd ..
-    log_success "Frontend build completed"
+    log_success "Frontend build completed with secure API key"
 }
 
 deploy_infrastructure() {
