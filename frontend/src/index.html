@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rift Rewind - League of Legends Player Insights</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-particles"></div>
+    
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">
+                <span class="logo-text">Rift Rewind</span>
+                <span class="logo-subtitle">Player Insights</span>
+            </h1>
+            <nav class="nav">
+                <a href="#search" class="nav-link">Search</a>
+                <a href="#leaderboard" class="nav-link">Leaderboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <section id="search" class="search-section">
+            <div class="container">
+                <h2 class="section-title">Discover Summoners</h2>
+                <div class="search-form">
+                    <select id="region" class="region-select">
+                        <option value="na1">NA</option>
+                        <option value="euw1">EUW</option>
+                        <option value="eune1">EUNE</option>
+                        <option value="kr">KR</option>
+                        <option value="jp1">JP</option>
+                    </select>
+                    <input type="text" id="summoner-name" placeholder="Enter summoner name..." class="summoner-input">
+                    <button id="search-btn" class="search-btn">
+                        <span>Search</span>
+                        <div class="btn-glow"></div>
+                    </button>
+                </div>
+                <div id="loading" class="loading hidden">
+                    <div class="rift-portal"></div>
+                    <p>Connecting to the Rift...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="results" class="results-section hidden">
+            <div class="container">
+                <div id="summoner-card" class="summoner-card"></div>
+                <div id="champion-mastery" class="champion-mastery"></div>
+            </div>
+        </section>
+
+        <section id="leaderboard" class="leaderboard-section">
+            <div class="container">
+                <h2 class="section-title">Community Leaderboard</h2>
+                <div class="leaderboard-filters">
+                    <select id="leaderboard-region" class="region-filter">
+                        <option value="all">All Regions</option>
+                        <option value="na1">NA</option>
+                        <option value="euw1">EUW</option>
+                        <option value="eune1">EUNE</option>
+                        <option value="kr">KR</option>
+                        <option value="jp1">JP</option>
+                    </select>
+                </div>
+                <div id="leaderboard-list" class="leaderboard-list"></div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>Rift Rewind isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games.</p>
+        </div>
+    </footer>
+
+    <div id="notification" class="notification hidden"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
