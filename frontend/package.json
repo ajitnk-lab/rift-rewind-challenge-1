@@ -1,0 +1,26 @@
+{
+  "name": "rift-rewind-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for Rift Rewind - League of Legends Player Insights",
+  "main": "src/index.html",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "python3 -m http.server 8000 --directory src",
+    "serve": "python3 -m http.server 8000 --directory dist",
+    "clean": "rm -rf dist/*",
+    "prebuild": "npm run clean",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "devDependencies": {
+    "html-minifier-terser": "^7.2.0"
+  },
+  "keywords": [
+    "league-of-legends",
+    "riot-games",
+    "gaming",
+    "aws",
+    "frontend"
+  ],
+  "author": "DevTeam",
+  "license": "MIT"
+}
