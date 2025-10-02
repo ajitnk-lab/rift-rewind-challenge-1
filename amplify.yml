@@ -6,15 +6,15 @@ frontend:
         - echo "Installing frontend dependencies..."
         - cd frontend
         - npm ci
-        - echo "Retrieving API key from AWS Secrets Manager..."
-        - export RIOT_API_KEY=$(aws secretsmanager get-secret-value --secret-id rift-rewind/riot-api-key --region $AWS_DEFAULT_REGION --query SecretString --output text | jq -r .apiKey)
     build:
       commands:
-        - echo "Building application with secure API key..."
-        - cp src/app.js src/app.js.backup
-        - sed -i "s/RGAPI-afe09931-a170-4541-8f25-2b071c0ab4ed/$RIOT_API_KEY/g" src/app.js
+        - echo "Building application..."
         - npm run build
-        - echo "Build completed successfully"
+        - echo "Retrieving API key from AWS Secrets Manager..."
+        - RIOT_API_KEY=$(aws secretsmanager get-secret-value --secret-id rift-rewind-clean/riot-api-key --region $AWS_DEFAULT_REGION --query SecretString --output text)
+        - echo "Injecting API key into built files..."
+        - sed -i "s#YOUR_RIOT_API_KEY_HERE#$RIOT_API_KEY#g" dist/app.js
+        - echo "API key injection completed"
     postBuild:
       commands:
         - echo "Deployment completed"

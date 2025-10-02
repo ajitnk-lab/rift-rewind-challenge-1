@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { minify } = require('html-minifier-terser');
 
 // Configuration
 const srcDir = path.join(__dirname, 'src');
@@ -11,17 +10,14 @@ if (!fs.existsSync(distDir)) {
     fs.mkdirSync(distDir, { recursive: true });
 }
 
-// HTML minification options
-const htmlMinifyOptions = {
-    collapseWhitespace: true,
-    removeComments: true,
-    removeRedundantAttributes: true,
-    removeScriptTypeAttributes: true,
-    removeStyleLinkTypeAttributes: true,
-    useShortDoctype: true,
-    minifyCSS: true,
-    minifyJS: true,
-};
+// Basic HTML minification function
+function minifyHTML(html) {
+    return html
+        .replace(/<!--[\s\S]*?-->/g, '') // Remove comments
+        .replace(/\s+/g, ' ') // Collapse whitespace
+        .replace(/>\s+</g, '><') // Remove whitespace between tags
+        .trim();
+}
 
 // CSS minification function
 function minifyCSS(css) {
@@ -53,13 +49,13 @@ function minifyJS(js) {
 }
 
 // Process files
-async function buildFiles() {
+function buildFiles() {
     console.log('🚀 Starting build process...');
     
     try {
         // Read and process HTML
         const htmlContent = fs.readFileSync(path.join(srcDir, 'index.html'), 'utf8');
-        const minifiedHTML = await minify(htmlContent, htmlMinifyOptions);
+        const minifiedHTML = minifyHTML(htmlContent);
         fs.writeFileSync(path.join(distDir, 'index.html'), minifiedHTML);
         console.log('✅ HTML minified and optimized');
         

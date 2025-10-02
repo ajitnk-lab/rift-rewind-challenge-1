@@ -12,6 +12,9 @@ export class RiftRewindStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    // Reference the GitHub PAT from Secrets Manager
+    const githubPat = secretsmanager.Secret.fromSecretNameV2(this, 'GitHubPAT', 'rift-rewind/github-pat');
+
     // Create S3 bucket for static website hosting (private bucket)
     const websiteBucket = new s3.Bucket(this, 'RiftRewindWebsiteBucket', {
       bucketName: `rift-rewind-website-${this.account}-${this.region}`,
@@ -162,7 +165,7 @@ export class RiftRewindStack extends cdk.Stack {
       name: 'rift-rewind',
       description: 'Rift Rewind - League of Legends Player Insights',
       repository: 'https://github.com/ajitnk-lab/rift-rewind-challenge-1',
-      accessToken: githubTokenSecret.secretValueFromJson('token').unsafeUnwrap(),
+      accessToken: githubPat.secretValue.unsafeUnwrap(),
       iamServiceRole: amplifyRole.roleArn,
       platform: 'WEB',
       // buildSpec will be read from amplify.yml in repository root

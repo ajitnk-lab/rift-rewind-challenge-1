@@ -11,9 +11,7 @@
     "prebuild": "npm run clean",
     "test": "echo \"No tests specified\" && exit 0"
   },
-  "devDependencies": {
-    "html-minifier-terser": "^7.2.0"
-  },
+  "devDependencies": {},
   "keywords": [
     "league-of-legends",
     "riot-games",
