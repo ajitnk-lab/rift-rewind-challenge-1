@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Test Riot Games API Key
-API_KEY="RGAPI-3135fd4b-9af6-4efa-9a8b-0ec4729c36cd"
+API_KEY="RGAPI-afe09931-a170-4541-8f25-2b071c0ab4ed"
 
 echo "🔑 Testing Riot Games API Key: ${API_KEY:0:10}..."
 echo ""

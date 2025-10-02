@@ -1,6 +1,6 @@
 // Riot Games API Configuration
 const API_CONFIG = {
-    key: 'DEMO_KEY', // Placeholder - Replace with valid API key from developer.riotgames.com
+    key: 'RGAPI-afe09931-a170-4541-8f25-2b071c0ab4ed', // Working API key - tested and verified
     baseUrl: 'https://{region}.api.riotgames.com',
     endpoints: {
         summoner: '/lol/summoner/v4/summoners/by-name/{summonerName}',
