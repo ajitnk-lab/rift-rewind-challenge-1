@@ -1,0 +1,71 @@
+name: Deploy Rift Rewind
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: |
+          frontend/package-lock.json
+          infrastructure/package-lock.json
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm run build
+    
+    - name: Install CDK dependencies
+      run: |
+        cd infrastructure
+        npm ci
+    
+    - name: Deploy infrastructure
+      run: |
+        cd infrastructure
+        npx cdk deploy --require-approval never
+    
+    - name: Upload to S3 and invalidate CloudFront
+      run: |
+        # Get bucket name from CDK outputs
+        BUCKET_NAME=$(aws cloudformation describe-stacks \
+          --stack-name RiftRewindStack \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebsiteBucketName`].OutputValue' \
+          --output text)
+        
+        # Upload files
+        aws s3 sync frontend/dist/ s3://$BUCKET_NAME/ --delete
+        
+        # Get distribution ID and invalidate
+        DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+          --stack-name RiftRewindStack \
+          --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+          --output text)
+        
+        aws cloudfront create-invalidation \
+          --distribution-id $DISTRIBUTION_ID \
+          --paths "/*"

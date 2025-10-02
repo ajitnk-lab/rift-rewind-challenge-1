@@ -1,0 +1,27 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "Installing frontend dependencies..."
+        - cd frontend
+        - npm ci
+        - echo "Retrieving API key from AWS Secrets Manager..."
+        - export RIOT_API_KEY=$(aws secretsmanager get-secret-value --secret-id rift-rewind/riot-api-key --region $AWS_DEFAULT_REGION --query SecretString --output text | jq -r .apiKey)
+    build:
+      commands:
+        - echo "Building application with secure API key..."
+        - cp src/app.js src/app.js.backup
+        - sed -i "s/RGAPI-afe09931-a170-4541-8f25-2b071c0ab4ed/$RIOT_API_KEY/g" src/app.js
+        - npm run build
+        - echo "Build completed successfully"
+    postBuild:
+      commands:
+        - echo "Deployment completed"
+  artifacts:
+    baseDirectory: frontend/dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - frontend/node_modules/**/*

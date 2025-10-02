@@ -136,7 +136,7 @@ export class RiftRewindStack extends cdk.Stack {
                 'cloudfront:GetDistribution',
                 'cloudfront:ListDistributions',
               ],
-              resources: [distribution.distributionArn],
+              resources: [`arn:aws:cloudfront::${this.account}:distribution/${distribution.distributionId}`],
             }),
           ],
         }),
@@ -165,31 +165,7 @@ export class RiftRewindStack extends cdk.Stack {
       accessToken: githubTokenSecret.secretValueFromJson('token').unsafeUnwrap(),
       iamServiceRole: amplifyRole.roleArn,
       platform: 'WEB',
-      buildSpec: `
-version: 1
-frontend:
-  phases:
-    preBuild:
-      commands:
-        - echo "Installing dependencies..."
-        - cd frontend/src
-        - echo "Retrieving API key from AWS Secrets Manager..."
-        - export RIOT_API_KEY=$(aws secretsmanager get-secret-value --secret-id rift-rewind/riot-api-key --region ${this.region} --query SecretString --output text | jq -r .apiKey)
-    build:
-      commands:
-        - echo "Building application with secure API key..."
-        - sed -i "s/RGAPI-afe09931-a170-4541-8f25-2b071c0ab4ed/\$RIOT_API_KEY/g" app.js
-        - echo "Build completed with secure API key injection"
-    postBuild:
-      commands:
-        - echo "Build completed successfully"
-  artifacts:
-    baseDirectory: frontend/src
-    files:
-      - '**/*'
-  cache:
-    paths: []
-      `,
+      // buildSpec will be read from amplify.yml in repository root
       environmentVariables: [
         {
           name: 'AMPLIFY_DIFF_DEPLOY',
