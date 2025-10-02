@@ -13,7 +13,63 @@ const API_CONFIG = {
 const requestCache = new Map();
 const requestQueue = [];
 let lastRequestTime = 0;
-const REQUEST_DELAY = 1200; // 1.2 seconds between requests
+
+// Riot API Rate Limits: 20 requests/1s, 100 requests/2min
+const RATE_LIMITS = {
+    SHORT_TERM: { requests: 20, window: 1000 }, // 20 requests per 1 second
+    LONG_TERM: { requests: 100, window: 120000 } // 100 requests per 2 minutes
+};
+
+// Rate limiting tracking
+const rateLimitTracker = {
+    shortTerm: [],
+    longTerm: [],
+    
+    // Add request timestamp
+    addRequest() {
+        const now = Date.now();
+        this.shortTerm.push(now);
+        this.longTerm.push(now);
+        this.cleanup(now);
+    },
+    
+    // Remove old requests outside the time windows
+    cleanup(now) {
+        this.shortTerm = this.shortTerm.filter(time => now - time < RATE_LIMITS.SHORT_TERM.window);
+        this.longTerm = this.longTerm.filter(time => now - time < RATE_LIMITS.LONG_TERM.window);
+    },
+    
+    // Check if we can make a request
+    canMakeRequest() {
+        const now = Date.now();
+        this.cleanup(now);
+        
+        return this.shortTerm.length < RATE_LIMITS.SHORT_TERM.requests && 
+               this.longTerm.length < RATE_LIMITS.LONG_TERM.requests;
+    },
+    
+    // Calculate delay needed before next request
+    getDelayUntilNextRequest() {
+        const now = Date.now();
+        this.cleanup(now);
+        
+        let delay = 0;
+        
+        // Check short-term limit
+        if (this.shortTerm.length >= RATE_LIMITS.SHORT_TERM.requests) {
+            const oldestShort = Math.min(...this.shortTerm);
+            delay = Math.max(delay, RATE_LIMITS.SHORT_TERM.window - (now - oldestShort) + 100);
+        }
+        
+        // Check long-term limit
+        if (this.longTerm.length >= RATE_LIMITS.LONG_TERM.requests) {
+            const oldestLong = Math.min(...this.longTerm);
+            delay = Math.max(delay, RATE_LIMITS.LONG_TERM.window - (now - oldestLong) + 100);
+        }
+        
+        return delay;
+    }
+};
 
 // DOM Elements
 const elements = {
@@ -170,20 +226,36 @@ function buildApiUrl(endpoint, region, params) {
     return url;
 }
 
-async function makeApiRequest(url) {
-    // Rate limiting
+async function makeApiRequest(url, retryCount = 0) {
+    const maxRetries = 3;
+    const baseDelay = 1000;
+    
+    // Wait for rate limit if needed
+    if (!rateLimitTracker.canMakeRequest()) {
+        const delay = rateLimitTracker.getDelayUntilNextRequest();
+        console.log(`⏳ Rate limit reached, waiting ${delay}ms before next request`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
+    // Additional safety delay between requests
     const now = Date.now();
     const timeSinceLastRequest = now - lastRequestTime;
+    const minDelay = 50; // Minimum 50ms between requests
     
-    if (timeSinceLastRequest < REQUEST_DELAY) {
-        await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY - timeSinceLastRequest));
+    if (timeSinceLastRequest < minDelay) {
+        await new Promise(resolve => setTimeout(resolve, minDelay - timeSinceLastRequest));
     }
     
     lastRequestTime = Date.now();
+    rateLimitTracker.addRequest();
     
     const fullUrl = `${url}?api_key=${API_CONFIG.key}`;
     console.log('🌐 Making API request to:', url);
     console.log('🔑 Using API key:', API_CONFIG.key.substring(0, 10) + '...');
+    console.log('📊 Rate limit status:', {
+        shortTerm: `${rateLimitTracker.shortTerm.length}/${RATE_LIMITS.SHORT_TERM.requests}`,
+        longTerm: `${rateLimitTracker.longTerm.length}/${RATE_LIMITS.LONG_TERM.requests}`
+    });
     
     try {
         const response = await fetch(fullUrl);
@@ -210,19 +282,33 @@ async function makeApiRequest(url) {
                 console.log('❌ Could not read error response body:', e);
             }
             
-            // Handle specific error codes with detailed messages
-            if (response.status === 401) {
+            // Handle specific error codes with retry logic
+            if (response.status === 429) {
+                // Rate limit exceeded - implement exponential backoff
+                if (retryCount < maxRetries) {
+                    const retryDelay = baseDelay * Math.pow(2, retryCount) + Math.random() * 1000;
+                    console.log(`🔄 Rate limited (429), retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    return makeApiRequest(url, retryCount + 1);
+                } else {
+                    throw new Error(`Rate limit exceeded (429): Maximum retries reached. ${errorBody || 'Please wait before making more requests'}`);
+                }
+            } else if (response.status === 503 || response.status === 500) {
+                // Server errors - retry with exponential backoff
+                if (retryCount < maxRetries) {
+                    const retryDelay = baseDelay * Math.pow(2, retryCount);
+                    console.log(`🔄 Server error (${response.status}), retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    return makeApiRequest(url, retryCount + 1);
+                } else {
+                    throw new Error(`Server error (${response.status}): ${errorBody || 'Service temporarily unavailable'}`);
+                }
+            } else if (response.status === 401) {
                 throw new Error(`API Authentication Failed (401): ${errorBody || 'Invalid or expired API key'}`);
             } else if (response.status === 403) {
-                throw new Error(`API Access Forbidden (403): ${errorBody || 'API key lacks required permissions'}`);
+                throw new Error(`API Access Forbidden (403): ${errorBody || 'API key lacks required permissions or rate limited'}`);
             } else if (response.status === 404) {
                 throw new Error(`Summoner not found (404): ${errorBody || 'The requested summoner does not exist'}`);
-            } else if (response.status === 429) {
-                throw new Error(`Rate limit exceeded (429): ${errorBody || 'Too many requests, please wait'}`);
-            } else if (response.status === 500) {
-                throw new Error(`Riot API Server Error (500): ${errorBody || 'Internal server error'}`);
-            } else if (response.status === 503) {
-                throw new Error(`Riot API Unavailable (503): ${errorBody || 'Service temporarily unavailable'}`);
             } else {
                 throw new Error(`API request failed (${response.status}): ${errorBody || 'Unknown error'}`);
             }
@@ -235,9 +321,16 @@ async function makeApiRequest(url) {
     } catch (error) {
         console.error('🚨 API request error:', error);
         
-        // Network or other fetch errors
+        // Network or other fetch errors - retry for network issues
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            throw new Error(`Network error: Unable to connect to Riot Games API. Please check your internet connection.`);
+            if (retryCount < maxRetries) {
+                const retryDelay = baseDelay * Math.pow(2, retryCount);
+                console.log(`🔄 Network error, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                return makeApiRequest(url, retryCount + 1);
+            } else {
+                throw new Error(`Network error: Unable to connect to Riot Games API after ${maxRetries} attempts. Please check your internet connection.`);
+            }
         }
         
         // Re-throw our custom errors
